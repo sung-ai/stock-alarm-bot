@@ -11,7 +11,7 @@ st.set_page_config(
 )
 
 st.title("📈 QLD · TQQQ · SOXL 실시간 모니터링 대시보드")
-st.markdown("나만의 투자 지표 대시보드입니다.")
+st.markdown("깃허브 클라우드 기반으로 동작하는 나만의 투자 지표 대시보드입니다.")
 st.markdown("---")
 
 # RSI 계산 함수
@@ -143,33 +143,38 @@ for i, ticker in enumerate(tickers):
             chart_df = df_daily[['Close', 'MA200']].tail(250)
             st.line_chart(chart_df)
 
-# --- [추가된 부분] 대시보드 하단 공포지수(VIX) 섹션 ---
+# --- 대시보드 하단 시장 공포지수(CNN Fear & Greed 및 VIX) 섹션 ---
 st.markdown("---")
-st.markdown("### 🌪️ 시장 심리 및 공포지수 (VIX)")
+st.markdown("### 🌪️ 시장 심리 및 공포지수")
 
-try:
-    current_vix, vix_change = get_vix_data()
-    vix_col1, vix_col2 = st.columns(2)
-    
-    with vix_col1:
-        st.metric(label="VIX (변동성 공포지수)", value=f"{current_vix:.2f}", delta=f"{vix_change:+.2f}")
+col_fng, col_vix = st.columns(2)
+
+with col_fng:
+    st.markdown("#### CNN Fear & Greed Index")
+    # CNN 공식 공포탐욕 지수 실시간 게이지 이미지 연동
+    st.image("https://production.dataviz.cnn.io/index/fearandgreed/graphcounter", use_container_width=True)
+    st.caption("출처: CNN Business Fear & Greed Index")
+
+with col_vix:
+    st.markdown("#### VIX 변동성 공포지수")
+    try:
+        current_vix, vix_change = get_vix_data()
+        st.metric(label="VIX Index", value=f"{current_vix:.2f}", delta=f"{vix_change:+.2f}")
         
-    with vix_col2:
-        # VIX 구간별 해석 안내
         if current_vix < 15:
-            st.info("😎 **시장 분위기: 탐욕 / 안정적** (변동성이 낮고 시장이 평온한 상태입니다.)")
+            st.info("😎 **시장 분위기: 탐욕 / 안정적** (변동성이 낮고 시장이 평온합니다.)")
         elif 15 <= current_vix < 20:
-            st.success("🙂 **시장 분위기: 보통 / 완만함** (일반적인 시장 변동성 구간입니다.)")
+            st.success("🙂 **시장 분위기: 보통 / 완만함** (일반적인 변동성 구간입니다.)")
         elif 20 <= current_vix < 30:
-            st.warning("⚠️ **시장 분위기: 공포 / 변동성 확대** (시장 하락이나 불안감이 커지는 구간입니다. 분할 매수 기회를 주시하세요!)")
+            st.warning("⚠️ **시장 분위기: 공포 / 변동성 확대** (시장 불안감이 커지고 있습니다. 분할 매수 타점을 주시하세요!)")
         else:
-            st.error("🚨 **시장 분위기: 극단적 공포 / 패닉** (급락장 또는 위기 상황입니다. 공격적인 분할 매수 타점일 수 있습니다!)")
-except Exception as e:
-    st.warning("VIX 데이터를 불러오는 중 일시적인 오류가 발생했습니다.")
+            st.error("🚨 **시장 분위기: 극단적 공포 / 패닉** (급락장 또는 위기 상황입니다. 공격적인 분할 매수 기회일 수 있습니다!)")
+    except Exception as e:
+        st.warning("VIX 데이터를 불러오는 중 오류가 발생했습니다.")
 
 # 사이드바 정보
 st.sidebar.header("ℹ️ 설정 정보")
 st.sidebar.info(
     "이 대시보드는 Streamlit Cloud와 yfinance를 활용해 실시간으로 지표를 계산합니다.\n\n"
-    "버전: v1.5 (VIX 공포지수 섹션 추가)"
+    "버전: v1.6 (CNN Fear & Greed 게이지 이미지 추가)"
 )

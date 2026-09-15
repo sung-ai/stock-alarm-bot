@@ -110,29 +110,28 @@ st.markdown("---")
 
 
 # ==========================================
-# 2. 포트폴리오 데이터 준비 (스프레드시트 or 샘플 안전장치)
+# 2. 포트폴리오 데이터 준비 (구글 스프레드시트 연동)
 # ==========================================
 st.markdown("### 🗂️ 내 실시간 포트폴리오 비중 & 수익률 맵 (통합 한화 기준)")
-st.caption("달러 종목은 실시간 환율을 곱해 원화로 환산하고, SK하이닉스 같은 원화 종목과 합쳐서 전체 비중을 계산합니다.")
+st.caption("달러 종목은 실시간 환율을 곱해 원화로 환산하고, 원화 종목과 합쳐서 전체 비중을 계산합니다.")
 
-# 💡 본인의 구글 스프레드시트 CSV 링크를 여기에 넣어주세요!
-sheet_url = "https://docs.google.com/spreadsheets/d/e/2PACX-1vSnJDMSAnAwt8OwdYW0-RcxtVWGotd4oahXuqS7BRcUD-dFK05JA8cXMLdGpBVOV7cR3A9n7pLb9JKb/pubhtml"
+# 사용자분이 제공해주신 스프레드시트 CSV 링크 적용 완료
+sheet_url = "https://docs.google.com/spreadsheets/d/e/2PACX-1vSnJDMSAnAwt8OwdYW0-RcxtVWGotd4oahXuqS7BRcUD-dFK05JA8cXMLdGpBVOV7cR3A9n7pLb9JKb/pub?output=csv"
 
 usd_krw = get_exchange_rate()
 st.sidebar.metric("환율 (USD/KRW)", f"{usd_krw:,.2f} 원")
 
 df_portfolio = None
 
-if "YOUR_GOOGLE_SHEET_CSV_URL" not in sheet_url and sheet_url.strip() != "":
-    try:
-        temp_df = pd.read_csv(sheet_url)
-        required_cols = ['Ticker', 'Category', 'Quantity', 'BuyPrice', 'Currency']
-        if all(col in temp_df.columns for col in required_cols):
-            df_portfolio = temp_df.dropna(subset=['Ticker'])
-        else:
-            st.warning("⚠️ 스프레드시트 컬럼명이 올바르지 않습니다. (Ticker, Category, Quantity, BuyPrice, Currency 필요)")
-    except Exception as e:
-        st.warning(f"스프레드시트 연동 중 에러 발생: {e}. 기본 샘플 데이터로 동작합니다.")
+try:
+    temp_df = pd.read_csv(sheet_url)
+    required_cols = ['Ticker', 'Category', 'Quantity', 'BuyPrice', 'Currency']
+    if all(col in temp_df.columns for col in required_cols):
+        df_portfolio = temp_df.dropna(subset=['Ticker'])
+    else:
+        st.warning("⚠️ 스프레드시트 컬럼명이 올바르지 않습니다. (Ticker, Category, Quantity, BuyPrice, Currency 필요)")
+except Exception as e:
+    st.warning(f"스프레드시트 연동 중 에러 발생: {e}")
 
 if df_portfolio is None or len(df_portfolio) == 0:
     df_portfolio = pd.DataFrame({
@@ -143,7 +142,7 @@ if df_portfolio is None or len(df_portfolio) == 0:
         "Currency": ["USD", "USD", "USD", "KRW"]
     })
 
-live_tickers = df_portfolio['Ticker'].tolist()
+live_tickers = df_portfolio['Ticker'].astype(str).str.strip().tolist()
 updated_rows = []
 daily_data_dict = {}
 weekly_data_dict = {}
@@ -272,14 +271,14 @@ if len(live_tickers) > 0:
                     st.markdown("---")
                     st.line_chart(df_daily[['Close', 'MA200']].tail(250))
                 except Exception as ex:
-                    st.warning(f"⚠️ [{ticker}] 데이터를 처리하는 중 문제가 발생했습니다. (티커명 또는 데이터를 확인해주세요)")
+                    st.warning(f"⚠️ [{ticker}] 데이터를 처리하는 중 문제가 발생했습니다.")
             else:
-                st.error(f"❌ [{ticker}] 티커의 주가 정보를 가져오지 못했습니다. 스프레드시트의 티커명(예: 루시드는 `LCID`)을 정확히 확인해 주세요!")
+                st.error(f"❌ [{ticker}] 티커의 주가 정보를 가져오지 못했습니다. 스프레드시트의 티커명을 다시 확인해 주세요!")
 
 # 사이드바 정보
 st.sidebar.markdown("---")
 st.sidebar.header("ℹ️ 설정 정보")
 st.sidebar.info(
-    "원화/달러 통합 포트폴리오 대시보드 v3.4\n\n"
-    "잘못된 티커 자동 방어 기능 탑재"
+    "원화/달러 통합 포트폴리오 대시보드 v3.5\n\n"
+    "구글 스프레드시트 연동 완료"
 )

@@ -145,13 +145,23 @@ live_tickers = df_portfolio['Ticker'].astype(str).str.strip().tolist()
 updated_rows = []
 daily_data_dict = {}
 weekly_data_dict = {}
-ticker_status_dict = {} # 탭 이름에 충족 여부를 달기 위한 사전
+ticker_status_dict = {} 
 
-criteria_tiers = [
-    {"name": "1차 매수", "disp": -15.0, "rsi": 45.0},
-    {"name": "2차 매수", "disp": -25.0, "rsi": 38.0},
-    {"name": "3차 매수", "disp": -35.0, "rsi": 32.0},
-]
+# 종목별 맞춤 매수 기준 정의 함수
+def get_criteria(ticker):
+    t_upper = ticker.strip().upper()
+    if t_upper in ["TQQQ", "SOXL", "SNXX"]:
+        return [
+            {"name": "1차 매수", "disp": -18.0, "rsi": 43.0},
+            {"name": "2차 매수", "disp": -32.0, "rsi": 36.0},
+            {"name": "3차 매수", "disp": -45.0, "rsi": 31.0},
+        ]
+    else:
+        return [
+            {"name": "1차 매수", "disp": -10.0, "rsi": 48.0},
+            {"name": "2차 매수", "disp": -18.0, "rsi": 42.0},
+            {"name": "3차 매수", "disp": -26.0, "rsi": 36.0},
+        ]
 
 for idx, row in df_portfolio.iterrows():
     ticker = str(row['Ticker']).strip()
@@ -169,6 +179,9 @@ for idx, row in df_portfolio.iterrows():
         ma200 = float(df_d.iloc[-1]['MA200'])
         disparity = ((raw_current_price - ma200) / ma200) * 100
         current_rsi = float(df_w.iloc[-1]['RSI'])
+        
+        # 해당 종목 맞춤형 기준 가져오기
+        criteria_tiers = get_criteria(ticker)
         
         # 조건 충족 여부 사전 계산
         met_count = 0
@@ -230,14 +243,13 @@ except Exception as e:
 
 
 # ==========================================
-# 3. 종목별 상세 지표 분석 탭 (충족 여부 탭 이름 반영)
+# 3. 종목별 상세 지표 분석 탭 (맞춤형 기준 적용)
 # ==========================================
 st.markdown("---")
 st.markdown("### 📊 보유 종목별 상세 지표 및 매수 조건 분석")
-st.caption("💡 탭 이름에 **🔥 (충족)** 표시가 붙은 종목은 현재 1~3차 매수 조건을 만족한 상태입니다!")
+st.caption("💡 탭 이름에 **🔥 (충족)** 표시가 붙은 종목은 현재 설정된 맞춤형 분할 매수 조건을 만족한 상태입니다!")
 
 if len(live_tickers) > 0:
-    # 탭 이름을 조건 충족 상태가 포함된 레이블로 생성
     tab_labels = [ticker_status_dict.get(t, t) for t in live_tickers]
     tabs = st.tabs(tab_labels)
     
@@ -267,7 +279,10 @@ if len(live_tickers) > 0:
                         
                     st.markdown("---")
                     
-                    st.markdown(f"### 🎯 [{ticker}] 분할 매수 조건 판정")
+                    st.markdown(f"### 🎯 [{ticker}] 맞춤형 분할 매수 조건 판정")
+                    
+                    # 종목별 맞춤 기준표 불러오기
+                    criteria_tiers = get_criteria(ticker)
                     
                     met_count = 0
                     for tier in criteria_tiers:
@@ -298,6 +313,6 @@ if len(live_tickers) > 0:
 st.sidebar.markdown("---")
 st.sidebar.header("ℹ️ 설정 정보")
 st.sidebar.info(
-    "원화/달러 통합 포트폴리오 대시보드 v3.6\n\n"
-    "탭 상단 매수 조건 충족 알림 기능 탑재"
+    "원화/달러 통합 포트폴리오 대시보드 v3.7\n\n"
+    "고위험 레버리지 / 일반 종목 매수 기준 이원화 적용"
 )

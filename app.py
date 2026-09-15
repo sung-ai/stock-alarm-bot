@@ -48,7 +48,7 @@ def get_exchange_rate():
             ex_df.columns = ex_df.columns.get_level_values(0)
         return ex_df.iloc[-1]['Close']
     except:
-        return 1350.0 # 환율 조회 실패 시 기본값 대안
+        return 1350.0
 
 # VIX(공포지수) 가져오기 함수
 @st.cache_data(ttl=3600)
@@ -108,24 +108,30 @@ st.markdown("---")
 
 
 # ==========================================
-# 2. 구글 스프레드시트 연동 및 포트폴리오 트리맵 (원화 환산)
+# 2. 구글 스프레드시트 연동 및 포트폴리오 트리맵
 # ==========================================
 st.markdown("### 🗂️ 내 실시간 포트폴리오 비중 & 수익률 맵 (통합 한화 기준)")
 st.caption("달러 종목은 실시간 환율을 곱해 원화로 환산하고, SK하이닉스 같은 원화 종목과 합쳐서 전체 비중을 계산합니다.")
 
-# 💡 본인의 구글 스프레드시트 CSV 링크를 아래에 넣어주세요!
-sheet_url = "https://docs.google.com/spreadsheets/d/e/2PACX-1vSnJDMSAnAwt8OwdYW0-RcxtVWGotd4oahXuqS7BRcUD-dFK05JA8cXMLdGpBVOV7cR3A9n7pLb9JKb/pub?gid=0&single=true&output=csv"
+# 💡 본인의 구글 스프레드시트 CSV 링크를 아래에 넣어주세요! (아직 안 넣었다면 샘플로 동작합니다)
+sheet_url = "YOUR_GOOGLE_SHEET_CSV_URL_HERE"
 
 usd_krw = get_exchange_rate()
 st.sidebar.metric("환율 (USD/KRW)", f"{usd_krw:,.2f} 원")
 
-portfolio_loaded = False
+df_portfolio = None
 try:
-    if "YOUR_GOOGLE_SHEET_CSV_URL" not in sheet_url:
-        df_portfolio = pd.read_csv(sheet_url)
-        portfolio_loaded = True
-    else:
-        # 샘플 데이터 (SK하이닉스 000660.KS 포함)
+    if "YOUR_GOOGLE_SHEET_CSV_URL" not in sheet_url and sheet_url.strip() != "":
+        temp_df = pd.read_csv(sheet_url)
+        # 필수 컬럼이 있는지 안전하게 검사
+        required_cols = ['Ticker', 'Category', 'Quantity', 'BuyPrice', 'Currency']
+        if all(col in temp_df.columns for col in required_cols):
+            df_portfolio = temp_df
+        else:
+            st.warning("⚠️ 스프레드시트의 열(Column) 이름이 올바르지 않습니다. `Ticker, Category, Quantity, BuyPrice, Currency`로 맞춰주세요. 샘플 데이터로 대체합니다.")
+    
+    if df_portfolio is None:
+        # 안전한 기본 샘플 데이터
         df_portfolio = pd.DataFrame({
             "Ticker": ["QLD", "TQQQ", "SOXL", "000660.KS"],
             "Category": ["레버리지", "레버리지", "반도체", "국내주식"],
@@ -133,74 +139,79 @@ try:
             "BuyPrice": [80.0, 50.0, 20.0, 150000.0],
             "Currency": ["USD", "USD", "USD", "KRW"]
         })
-        st.info("💡 안내: 샘플 데이터로 실행 중입니다. 코드 안의 `sheet_url`을 본인 구글 스프레드시트 링크로 변경해주세요!")
-        portfolio_loaded = True
-except Exception as e:
-    st.error(f"구글 스프레드시트를 불러오는 중 에러 발생: {e}")
-
-if portfolio_loaded:
-    live_tickers = df_portfolio['Ticker'].tolist()
-    updated_rows = []
-    daily_data_dict = {}
-    weekly_data_dict = {}
-    
-    for idx, row in df_portfolio.iterrows():
-        ticker = row['Ticker']
-        qty = row['Quantity']
-        buy_price = row['BuyPrice']
-        currency = row['Currency']
-        category = row['Category']
+        st.info("💡 안내: 구글 스프레드시트 링크가 아직 연결되지 않았거나 형식이 달라 **기본 샘플 데이터(하이닉스 포함)**로 실행 중입니다.")
         
-        try:
-            df_d, df_w = get_stock_data(ticker)
-            daily_data_dict[ticker] = df_d
-            weekly_data_dict[ticker] = df_w
-            
-            raw_current_price = df_d.iloc[-1]['Close']
-            
-            # 통화에 따른 원화 환산 처리
-            if currency == "USD":
-                current_price_krw = raw_current_price * usd_krw
-                buy_price_krw = buy_price * usd_krw
-            else: # KRW
-                current_price_krw = raw_current_price
-                buy_price_krw = buy_price
-                
-            total_value_krw = current_price_krw * qty
-            return_pct = ((raw_current_price - buy_price) / buy_price) * 100
-            
-            updated_rows.append({
-                "Ticker": ticker,
-                "Category": category,
-                "TotalValue": total_value_krw,
-                "Return": return_pct,
-                "CurrentPrice": raw_current_price,
-                "Currency": currency
-            })
-        except Exception as e:
-            updated_rows.append({
-                "Ticker": ticker,
-                "Category": category,
-                "TotalValue": buy_price * qty if currency == "KRW" else buy_price * qty * usd_krw,
-                "Return": 0.0,
-                "CurrentPrice": buy_price,
-                "Currency": currency
-            })
-            
-    df_res = pd.DataFrame(updated_rows)
+except Exception as e:
+    st.error(f"스프레드시트 로드 중 오류 발생: {e}. 기본 샘플 데이터로 대체합니다.")
+    df_portfolio = pd.DataFrame({
+        "Ticker": ["QLD", "TQQQ", "SOXL", "000660.KS"],
+        "Category": ["레버리지", "레버리지", "반도체", "국내주식"],
+        "Quantity": [50, 100, 200, 10],
+        "BuyPrice": [80.0, 50.0, 20.0, 150000.0],
+        "Currency": ["USD", "USD", "USD", "KRW"]
+    })
+
+live_tickers = df_portfolio['Ticker'].tolist()
+updated_rows = []
+daily_data_dict = {}
+weekly_data_dict = {}
+
+for idx, row in df_portfolio.iterrows():
+    ticker = str(row['Ticker']).strip()
+    qty = float(row['Quantity'])
+    buy_price = float(row['BuyPrice'])
+    currency = str(row['Currency']).strip()
+    category = str(row['Category']).strip()
     
-    # 트리맵 시각화 (한화 평가금액 기준 박스 크기)
-    fig_tree = px.treemap(
-        df_res,
-        path=['Category', 'Ticker'],
-        values='TotalValue',
-        color='Return',
-        color_continuous_scale='RdYlGn',
-        color_continuous_midpoint=0,
-        range_color=[-20, 20]
-    )
-    fig_tree.update_layout(height=350, margin=dict(l=10, r=10, t=10, b=10))
-    st.plotly_chart(fig_tree, use_container_width=True)
+    try:
+        df_d, df_w = get_stock_data(ticker)
+        daily_data_dict[ticker] = df_d
+        weekly_data_dict[ticker] = df_w
+        
+        raw_current_price = df_d.iloc[-1]['Close']
+        
+        if currency == "USD":
+            current_price_krw = raw_current_price * usd_krw
+            buy_price_krw = buy_price * usd_krw
+        else:
+            current_price_krw = raw_current_price
+            buy_price_krw = buy_price
+            
+        total_value_krw = current_price_krw * qty
+        return_pct = ((raw_current_price - buy_price) / buy_price) * 100
+        
+        updated_rows.append({
+            "Ticker": ticker,
+            "Category": category,
+            "TotalValue": total_value_krw,
+            "Return": return_pct,
+            "CurrentPrice": raw_current_price,
+            "Currency": currency
+        })
+    except Exception as e:
+        updated_rows.append({
+            "Ticker": ticker,
+            "Category": category,
+            "TotalValue": buy_price * qty if currency == "KRW" else buy_price * qty * usd_krw,
+            "Return": 0.0,
+            "CurrentPrice": buy_price,
+            "Currency": currency
+        })
+        
+df_res = pd.DataFrame(updated_rows)
+
+# 트리맵 시각화
+fig_tree = px.treemap(
+    df_res,
+    path=['Category', 'Ticker'],
+    values='TotalValue',
+    color='Return',
+    color_continuous_scale='RdYlGn',
+    color_continuous_midpoint=0,
+    range_color=[-20, 20]
+)
+fig_tree.update_layout(height=350, margin=dict(l=10, r=10, t=10, b=10))
+st.plotly_chart(fig_tree, use_container_width=True)
 
 
 # ==========================================
@@ -209,7 +220,7 @@ if portfolio_loaded:
 st.markdown("---")
 st.markdown("### 📊 보유 종목별 상세 지표 및 매수 조건 분석")
 
-if portfolio_loaded and len(live_tickers) > 0:
+if len(live_tickers) > 0:
     tabs = st.tabs(live_tickers)
     
     for i, ticker in enumerate(live_tickers):
@@ -225,7 +236,6 @@ if portfolio_loaded and len(live_tickers) > 0:
                 disparity = ((current_price - ma200) / ma200) * 100
                 current_rsi = df_weekly.iloc[-1]['RSI']
                 
-                # 화폐 단위 표시 분기
                 curr_symbol = "$" if ".KS" not in ticker and ".KQ" not in ticker else "원"
                 
                 col1, col2, col3 = st.columns(3)
@@ -270,6 +280,6 @@ if portfolio_loaded and len(live_tickers) > 0:
 st.sidebar.markdown("---")
 st.sidebar.header("ℹ️ 설정 정보")
 st.sidebar.info(
-    "원화/달러 통합 포트폴리오 대시보드 v3.1\n\n"
-    "SK하이닉스(000660.KS) 등 국내 주식 동시 지원"
+    "원화/달러 통합 포트폴리오 대시보드 v3.2\n\n"
+    "키오스크 에러 방지 안전장치 적용"
 )

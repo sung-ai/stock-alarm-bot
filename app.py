@@ -180,10 +180,9 @@ for idx, row in df_portfolio.iterrows():
         disparity = ((raw_current_price - ma200) / ma200) * 100
         current_rsi = float(df_w.iloc[-1]['RSI'])
         
-        # 해당 종목 맞춤형 기준 가져오기
         criteria_tiers = get_criteria(ticker)
         
-        # 조건 충족 여부 사전 계산
+        # 조건 충족 여부 사전 계산 (하나라도 충족하면 불꽃 표시)
         met_count = 0
         for tier in criteria_tiers:
             if disparity <= tier["disp"] or current_rsi <= tier["rsi"]:
@@ -243,7 +242,7 @@ except Exception as e:
 
 
 # ==========================================
-# 3. 종목별 상세 지표 분석 탭 (맞춤형 기준 적용)
+# 3. 종목별 상세 지표 분석 탭 (단계별 충족 여부 및 갭 상세 표시)
 # ==========================================
 st.markdown("---")
 st.markdown("### 📊 보유 종목별 상세 지표 및 매수 조건 분석")
@@ -278,29 +277,52 @@ if len(live_tickers) > 0:
                         st.metric(label="주봉 RSI (14)", value=f"{current_rsi:.2f}")
                         
                     st.markdown("---")
+                    st.markdown(f"### 🎯 [{ticker}] 단계별 매수 조건 충족 및 거리(Gap) 분석")
                     
-                    st.markdown(f"### 🎯 [{ticker}] 맞춤형 분할 매수 조건 판정")
-                    
-                    # 종목별 맞춤 기준표 불러오기
                     criteria_tiers = get_criteria(ticker)
-                    
                     met_count = 0
+                    
                     for tier in criteria_tiers:
-                        is_disp_met = disparity <= tier["disp"]
-                        is_rsi_met = current_rsi <= tier["rsi"]
+                        target_disp = tier["disp"]
+                        target_rsi = tier["rsi"]
+                        
+                        is_disp_met = disparity <= target_disp
+                        is_rsi_met = current_rsi <= target_rsi
+                        
+                        # 부족한 정도(Gap) 계산
+                        disp_gap = disparity - target_disp    # 양수면 아직 목표보다 높은 상태(더 떨어져야 함)
+                        rsi_gap = current_rsi - target_rsi      # 양수면 아직 목표보다 높은 상태(더 내려와야 함)
+                        
+                        st.markdown(f"#### 📌 {tier['name']}")
+                        
+                        col_a, col_b = st.columns(2)
+                        
+                        with col_a:
+                            # 괴리율 판정 및 부족한 수치 표시
+                            if is_disp_met:
+                                st.markdown(f"- 200일선 괴리율: 목표(`{target_disp}%` 이하) / 현재(`{disparity:.2f}%`) 👉 🟢 **[충족 완료]**")
+                            else:
+                                st.markdown(f"- 200일선 괴리율: 목표(`{target_disp}%` 이하) / 현재(`{disparity:.2f}%`) 👉 ⚪ 미달 (📉 **`{disp_gap:.2f}%` 더 하락 필요**)")
+                                
+                        with col_b:
+                            # RSI 판정 및 부족한 수치 표시
+                            if is_rsi_met:
+                                st.markdown(f"- 주봉 RSI: 목표(`{target_rsi}` 이하) / 현재(`{current_rsi:.2f}`) 👉 🟢 **[충족 완료]**")
+                            else:
+                                st.markdown(f"- 주봉 RSI: 목표(`{target_rsi}` 이하) / 현재(`{current_rsi:.2f}`) 👉 ⚪ 미달 (📉 **포인트 `{rsi_gap:.2f}` 더 하락 필요**)")
                         
                         if is_disp_met or is_rsi_met:
                             met_count += 1
-                            status_str = "🟢 **[충족]**"
+                            st.success(f"🎉 {tier['name']} 조건 달성!")
                         else:
-                            status_str = "⚪ (미달)"
+                            st.info(f"⏳ {tier['name']} 대기 중 (괴리율 갭: {disp_gap:.2f}%p / RSI 갭: {rsi_gap:.2f}pt)")
                             
-                        st.markdown(f"- **{tier['name']}** (목표 괴리율 `{tier['disp']}%` 이하 또는 RSI `{tier['rsi']}` 이하) -> {status_str}")
-                    
+                        st.markdown("") # 간격 조정
+                        
                     if met_count > 0:
-                        st.success(f"🔥 [{ticker}] 매수 조건 충족 단계 발생!")
+                        st.error(f"🚨 [{ticker}] 현재 총 {met_count개의} 매수 조건 단계가 충족되었습니다! 매수를 검토하세요.")
                     else:
-                        st.info(f"⏳ [{ticker}] 관망 중")
+                        st.info(f"🛡️ [{ticker}] 현재 만족된 매수 조건이 없습니다. 편안하게 관망하세요.")
                         
                     st.markdown("---")
                     st.line_chart(df_daily[['Close', 'MA200']].tail(250))
@@ -313,6 +335,6 @@ if len(live_tickers) > 0:
 st.sidebar.markdown("---")
 st.sidebar.header("ℹ️ 설정 정보")
 st.sidebar.info(
-    "원화/달러 통합 포트폴리오 대시보드 v3.7\n\n"
-    "고위험 레버리지 / 일반 종목 매수 기준 이원화 적용"
+    "원화/달러 통합 포트폴리오 대시보드 v3.8\n\n"
+    "1~3차 단계별 충족 여부 및 목표 대비 부족한 수치(Gap) 상세 표시 기능 탑재"
 )

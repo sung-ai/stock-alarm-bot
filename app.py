@@ -23,7 +23,7 @@ def calculate_rsi(data, window=14):
     rsi = 100 - (100 / (1 + rs))
     return rsi
 
-# 데이터 분석 함수
+# 데이터 분석 함수 (종목 데이터)
 @st.cache_data(ttl=3600) # 1시간 동안 데이터 캐싱 (속도 향상)
 def get_stock_data(ticker):
     # 일봉 데이터 (200일선 계산용)
@@ -39,6 +39,17 @@ def get_stock_data(ticker):
     df_weekly['RSI'] = calculate_rsi(df_weekly['Close'], window=14)
     
     return df_daily, df_weekly
+
+# VIX(공포지수) 가져오기 함수
+@st.cache_data(ttl=3600)
+def get_vix_data():
+    vix_df = yf.download("^VIX", period="5d", interval="1d", progress=False)
+    if isinstance(vix_df.columns, pd.MultiIndex):
+        vix_df.columns = vix_df.columns.get_level_values(0)
+    current_vix = vix_df.iloc[-1]['Close']
+    prev_vix = vix_df.iloc[-2]['Close']
+    vix_change = current_vix - prev_vix
+    return current_vix, vix_change
 
 # 종목 리스트
 tickers = ["QLD", "TQQQ", "SOXL"]
@@ -101,11 +112,9 @@ for i, ticker in enumerate(tickers):
                 is_disp_met = disparity <= tier["disp"]
                 is_rsi_met = current_rsi <= tier["rsi"]
                 
-                # 미충족 시 차이(Gap) 계산 (목표치보다 얼마나 더 높거나 여유가 있는지)
-                disp_gap = disparity - tier["disp"]  # 양수면 아직 목표치보다 높음(미달)
-                rsi_gap = current_rsi - tier["rsi"]    # 양수면 아직 목표치보다 높음(미달)
+                disp_gap = disparity - tier["disp"]
+                rsi_gap = current_rsi - tier["rsi"]
                 
-                # 상세 상태 메시지 구성
                 if is_disp_met and is_rsi_met:
                     met_count += 1
                     status_str = "🟢 **[충족]** (괴리율 & RSI 모두 충족)"
@@ -131,13 +140,36 @@ for i, ticker in enumerate(tickers):
             
             st.markdown("---")
             st.markdown("### 📊 최근 주가 및 200일선 추세")
-            # 최근 1년 차트 데이터 추출
             chart_df = df_daily[['Close', 'MA200']].tail(250)
             st.line_chart(chart_df)
+
+# --- [추가된 부분] 대시보드 하단 공포지수(VIX) 섹션 ---
+st.markdown("---")
+st.markdown("### 🌪️ 시장 심리 및 공포지수 (VIX)")
+
+try:
+    current_vix, vix_change = get_vix_data()
+    vix_col1, vix_col2 = st.columns(2)
+    
+    with vix_col1:
+        st.metric(label="VIX (변동성 공포지수)", value=f"{current_vix:.2f}", delta=f"{vix_change:+.2f}")
+        
+    with vix_col2:
+        # VIX 구간별 해석 안내
+        if current_vix < 15:
+            st.info("😎 **시장 분위기: 탐욕 / 안정적** (변동성이 낮고 시장이 평온한 상태입니다.)")
+        elif 15 <= current_vix < 20:
+            st.success("🙂 **시장 분위기: 보통 / 완만함** (일반적인 시장 변동성 구간입니다.)")
+        elif 20 <= current_vix < 30:
+            st.warning("⚠️ **시장 분위기: 공포 / 변동성 확대** (시장 하락이나 불안감이 커지는 구간입니다. 분할 매수 기회를 주시하세요!)")
+        else:
+            st.error("🚨 **시장 분위기: 극단적 공포 / 패닉** (급락장 또는 위기 상황입니다. 공격적인 분할 매수 타점일 수 있습니다!)")
+except Exception as e:
+    st.warning("VIX 데이터를 불러오는 중 일시적인 오류가 발생했습니다.")
 
 # 사이드바 정보
 st.sidebar.header("ℹ️ 설정 정보")
 st.sidebar.info(
     "이 대시보드는 Streamlit Cloud와 yfinance를 활용해 실시간으로 지표를 계산합니다.\n\n"
-    "버전: v1.4 (미달 시 괴리율/RSI 차이 수치 표시 기능 추가)"
+    "버전: v1.5 (VIX 공포지수 섹션 추가)"
 )

@@ -94,25 +94,29 @@ for i, ticker in enumerate(tickers):
                 ]
 
             st.markdown(f"### 🎯 [{ticker}] 분할 매수 조건 판정 (OR 조건)")
-            st.caption("각 단계별로 '괴리율 기준' 또는 '주봉 RSI 기준' 중 무엇으로 충족되었는지 상세히 표시됩니다.")
+            st.caption("각 단계별 목표치와 현재 수치의 차이를 함께 표시합니다.")
             
             met_count = 0
             for tier in criteria_tiers:
                 is_disp_met = disparity <= tier["disp"]
                 is_rsi_met = current_rsi <= tier["rsi"]
                 
-                # 어떤 조건으로 충족되었는지 상세 분기 처리
+                # 미충족 시 차이(Gap) 계산 (목표치보다 얼마나 더 높거나 여유가 있는지)
+                disp_gap = disparity - tier["disp"]  # 양수면 아직 목표치보다 높음(미달)
+                rsi_gap = current_rsi - tier["rsi"]    # 양수면 아직 목표치보다 높음(미달)
+                
+                # 상세 상태 메시지 구성
                 if is_disp_met and is_rsi_met:
                     met_count += 1
                     status_str = "🟢 **[충족]** (괴리율 & RSI 모두 충족)"
                 elif is_disp_met:
                     met_count += 1
-                    status_str = "🟢 **[충족]** (괴리율 조건 충족)"
+                    status_str = f"🟢 **[충족]** (괴리율 충족 / RSI는 기준 초과 +{rsi_gap:.1f})"
                 elif is_rsi_met:
                     met_count += 1
-                    status_str = "🟢 **[충족]** (주봉 RSI 조건 충족)"
+                    status_str = f"🟢 **[충족]** (RSI 충족 / 괴리율은 기준 초과 +{disp_gap:.1f}%)"
                 else:
-                    status_str = "⚪ (미달)"
+                    status_str = f"⚪ (미달: 괴리율 {disp_gap:+.1f}%p, RSI {rsi_gap:+.1f})"
                 
                 st.markdown(
                     f"- **{tier['name']}** (목표 괴리율 `{tier['disp']}%` 이하 / 목표 RSI `{tier['rsi']}` 이하) "
@@ -135,5 +139,5 @@ for i, ticker in enumerate(tickers):
 st.sidebar.header("ℹ️ 설정 정보")
 st.sidebar.info(
     "이 대시보드는 Streamlit Cloud와 yfinance를 활용해 실시간으로 지표를 계산합니다.\n\n"
-    "버전: v1.3 (매수 충족 사유 상세 표시 기능 추가)"
+    "버전: v1.4 (미달 시 괴리율/RSI 차이 수치 표시 기능 추가)"
 )

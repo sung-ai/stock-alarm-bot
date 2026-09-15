@@ -11,7 +11,7 @@ st.set_page_config(
 )
 
 st.title("📈 QLD · TQQQ · SOXL 실시간 모니터링 대시보드")
-st.markdown("깃허브 클라우드 기반으로 동작하는 나만의 투자 지표 대시보드입니다.")
+st.markdown("나만의 투자 지표 대시보드입니다.")
 st.markdown("---")
 
 # RSI 계산 함수

@@ -115,7 +115,7 @@ st.caption("달러 종목은 실시간 환율을 곱해 원화로 환산하고, 
 
 # 💡 여기에 본인의 구글 스프레드시트 CSV 링크를 넣으세요.
 # 만약 링크 자리에 "YOUR_GOOGLE_SHEET_CSV_URL_HERE"가 그대로 있거나 에러가 나면 샘플 데이터로 자동 실행됩니다.
-sheet_url = "YOUR_GOOGLE_SHEET_CSV_URL_HERE"
+sheet_url = "https://docs.google.com/spreadsheets/d/e/2PACX-1vSnJDMSAnAwt8OwdYW0-RcxtVWGotd4oahXuqS7BRcUD-dFK05JA8cXMLdGpBVOV7cR3A9n7pLb9JKb/pub?output=csv"
 
 usd_krw = get_exchange_rate()
 st.sidebar.metric("환율 (USD/KRW)", f"{usd_krw:,.2f} 원")

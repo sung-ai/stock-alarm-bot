@@ -116,7 +116,7 @@ st.markdown("### 🗂️ 내 실시간 포트폴리오 비중 & 수익률 맵 (�
 st.caption("달러 종목은 실시간 환율을 곱해 원화로 환산하고, SK하이닉스 같은 원화 종목과 합쳐서 전체 비중을 계산합니다.")
 
 # 💡 본인의 구글 스프레드시트 CSV 링크를 여기에 넣어주세요!
-sheet_url = "YOUR_GOOGLE_SHEET_CSV_URL_HERE"
+sheet_url = "https://docs.google.com/spreadsheets/d/e/2PACX-1vSnJDMSAnAwt8OwdYW0-RcxtVWGotd4oahXuqS7BRcUD-dFK05JA8cXMLdGpBVOV7cR3A9n7pLb9JKb/pubhtml"
 
 usd_krw = get_exchange_rate()
 st.sidebar.metric("환율 (USD/KRW)", f"{usd_krw:,.2f} 원")

@@ -2,7 +2,6 @@ import streamlit as st
 import pandas as pd
 import yfinance as yf
 import datetime
-import plotly.graph_objects as go
 
 # 페이지 기본 설정
 st.set_page_config(
@@ -144,63 +143,45 @@ for i, ticker in enumerate(tickers):
             chart_df = df_daily[['Close', 'MA200']].tail(250)
             st.line_chart(chart_df)
 
-# --- 대시보드 하단 시장 공포지수(VIX 기반 게이지 차트) 섹션 ---
+# --- 대시보드 하단 시장 심리 및 공포지수 기준 안내 섹션 ---
 st.markdown("---")
-st.markdown("### 🌪️ 시장 심리 및 공포지수")
+st.markdown("### 🌪️ 시장 심리 및 공포지수 기준 안내")
 
 try:
     current_vix, vix_change = get_vix_data()
-    
-    # VIX를 0~100 스케일의 공포지수 점수로 대략적으로 변환 (VIX 10=극단탐욕(0), 20=보통(50), 40이상=극단공포(100))
-    # 보통 VIX 15~20 사이가 중립이므로 이에 맞춰 매핑
     fng_approx = min(max(int((current_vix - 10) * 3.33), 0), 100)
     
-    col_gauge, col_text = st.columns([1.2, 1])
+    col_info, col_status = st.columns(2)
     
-    with col_gauge:
-        # Plotly를 이용해 CNN 스타일의 반원 게이지 차트 직접 구현
-        fig = go.Figure(go.Indicator(
-            mode = "gauge+number",
-            value = fng_approx,
-            domain = {'x': [0, 1], 'y': [0, 1]},
-            title = {'text': "Market Fear & Greed (VIX 환산)", 'font': {'size': 18}},
-            number = {'font': {'size': 36}},
-            gauge = {
-                'axis': {'range': [0, 100], 'tickwidth': 1, 'tickcolor': "darkblue"},
-                'bar': {'color': "rgba(0,0,0,0)"}, # 바늘 역할 대신 기본 바 숨김
-                'bgcolor': "white",
-                'borderwidth': 2,
-                'bordercolor': "gray",
-                'steps': [
-                    {'range': [0, 25], 'color': '#ff4d4d'},   # 극단적 공포 (빨강)
-                    {'range': [25, 45], 'color': '#ff9966'},  # 공포 (주황)
-                    {'range': [45, 55], 'color': '#e6e6e6'},  # 중립 (회색)
-                    {'range': [55, 75], 'color': '#99ccff'},  # 탐욕 (연파랑)
-                    {'range': [75, 100], 'color': '#3399ff'}  # 극단적 탐욕 (파랑)
-                ],
-                'threshold': {
-                    'line': {'color': "black", 'width': 4},
-                    'thickness': 0.75,
-                    'value': fng_approx
-                }
-            }
-        ))
-        fig.update_layout(height=250, margin=dict(l=20, r=20, t=40, b=20))
-        st.plotly_chart(fig, use_container_width=True)
+    with col_info:
+        st.markdown("#### 📐 CNN 공포탐욕 지수 기준표 (0 ~ 100)")
+        st.markdown(
+            """
+            * **0 ~ 24 (🔴 극단적 공포 - Extreme Fear):** 시장 패닉 상태. 역사적 바닥권일 확률이 높아 공격적 매수 기회.
+            * **25 ~ 44 (🟠 공포 - Fear):** 투자 심리 위축. 분할 매수를 시작하기 좋은 구간.
+            * **45 ~ 55 (⚪ 중립 - Neutral):** 시장 방향성이 뚜렷하지 않은 관망 구간.
+            * **56 ~ 75 (🔵 탐욕 - Greed):** 상승 기대감 확산, 서서히 주의가 필요한 구간.
+            * **76 ~ 100 (🟢 극단적 탐욕 - Extreme Greed):** 과열 구간. 차익 실현 및 현금 확보를 고려해야 할 시기.
+            """
+        )
 
-    with col_text:
-        st.markdown("#### VIX 변동성 공포지수 상세")
-        st.metric(label="VIX Index", value=f"{current_vix:.2f}", delta=f"{vix_change:+.2f}")
+    with col_status:
+        st.markdown("#### 📊 현재 시장 심리 상태 판정")
+        st.metric(label="VIX Index (참고용 변동성)", value=f"{current_vix:.2f}", delta=f"{vix_change:+.2f}")
+        st.metric(label="환산 공포탐욕 점수 (대략적)", value=f"{fng_approx}점 / 100점")
         
-        if current_vix < 15:
-            st.info("😎 **시장 분위기: 탐욕 / 안정적** (변동성이 낮고 시장이 평온합니다.)")
-        elif 15 <= current_vix < 20:
-            st.success("🙂 **시장 분위기: 보통 / 완만함** (일반적인 변동성 구간입니다.)")
-        elif 20 <= current_vix < 30:
-            st.warning("⚠️ **시장 분위기: 공포 / 변동성 확대** (시장 불안감이 커지고 있습니다. 분할 매수 타점을 주시하세요!)")
+        # 구간별 메시지 출력
+        if fng_approx <= 24:
+            st.error("🚨 현재 상태: **극단적 공포 (Extreme Fear)** - 적극적인 분할 매수 타점입니다!")
+        elif fng_approx <= 44:
+            st.warning("⚠️ 현재 상태: **공포 (Fear)** - 시장 심리가 위축되어 분할 매수를 고려할 시기입니다.")
+        elif fng_approx <= 55:
+            st.info("ℹ️ 현재 상태: **중립 (Neutral)** - 시장이 평온하며 관망하는 구간입니다.")
+        elif fng_approx <= 75:
+            st.success("🙂 현재 상태: **탐욕 (Greed)** - 상승 추세이나 과열을 주시해야 합니다.")
         else:
-            st.error("🚨 **시장 분위기: 극단적 공포 / 패닉** (급락장 또는 위기 상황입니다. 공격적인 분할 매수 기회일 수 있습니다!)")
-            
+            st.fire("🔥 현재 상태: **극단적 탐욕 (Extreme Greed)** - 시장 과열! 리스크 관리가 필요합니다.")
+
 except Exception as e:
     st.warning("시장 심리 데이터를 불러오는 중 오류가 발생했습니다.")
 
@@ -208,5 +189,5 @@ except Exception as e:
 st.sidebar.header("ℹ️ 설정 정보")
 st.sidebar.info(
     "이 대시보드는 Streamlit Cloud와 yfinance를 활용해 실시간으로 지표를 계산합니다.\n\n"
-    "버전: v1.7 (Plotly 기반 커스텀 게이지 차트 적용)"
+    "버전: v1.8 (공포탐욕 기준표 및 텍스트 가이드 적용)"
 )

@@ -28,6 +28,8 @@ def calculate_rsi(data, window=14):
 @st.cache_data(ttl=3600)
 def get_stock_data(ticker):
     df_daily = yf.download(ticker, period="2y", interval="1d", progress=False)
+    if df_daily is None or len(df_daily) == 0:
+        raise ValueError(f"'{ticker}' 데이터를 찾을 수 없습니다.")
     if isinstance(df_daily.columns, pd.MultiIndex):
         df_daily.columns = df_daily.columns.get_level_values(0)
     df_daily['MA200'] = df_daily['Close'].rolling(window=200).mean()
@@ -113,20 +115,17 @@ st.markdown("---")
 st.markdown("### 🗂️ 내 실시간 포트폴리오 비중 & 수익률 맵 (통합 한화 기준)")
 st.caption("달러 종목은 실시간 환율을 곱해 원화로 환산하고, SK하이닉스 같은 원화 종목과 합쳐서 전체 비중을 계산합니다.")
 
-# 💡 여기에 본인의 구글 스프레드시트 CSV 링크를 넣으세요.
-# 만약 링크 자리에 "YOUR_GOOGLE_SHEET_CSV_URL_HERE"가 그대로 있거나 에러가 나면 샘플 데이터로 자동 실행됩니다.
-sheet_url = "https://docs.google.com/spreadsheets/d/e/2PACX-1vSnJDMSAnAwt8OwdYW0-RcxtVWGotd4oahXuqS7BRcUD-dFK05JA8cXMLdGpBVOV7cR3A9n7pLb9JKb/pub?output=csv"
+# 💡 본인의 구글 스프레드시트 CSV 링크를 여기에 넣어주세요!
+sheet_url = "YOUR_GOOGLE_SHEET_CSV_URL_HERE"
 
 usd_krw = get_exchange_rate()
 st.sidebar.metric("환율 (USD/KRW)", f"{usd_krw:,.2f} 원")
 
 df_portfolio = None
 
-# 스프레드시트 읽기 시도
 if "YOUR_GOOGLE_SHEET_CSV_URL" not in sheet_url and sheet_url.strip() != "":
     try:
         temp_df = pd.read_csv(sheet_url)
-        # 필수 컬럼 검사
         required_cols = ['Ticker', 'Category', 'Quantity', 'BuyPrice', 'Currency']
         if all(col in temp_df.columns for col in required_cols):
             df_portfolio = temp_df.dropna(subset=['Ticker'])
@@ -135,9 +134,7 @@ if "YOUR_GOOGLE_SHEET_CSV_URL" not in sheet_url and sheet_url.strip() != "":
     except Exception as e:
         st.warning(f"스프레드시트 연동 중 에러 발생: {e}. 기본 샘플 데이터로 동작합니다.")
 
-# 링크가 없거나 에러가 났을 때 보여줄 안전한 기본 샘플 데이터 (하이닉스 포함)
 if df_portfolio is None or len(df_portfolio) == 0:
-    st.info("💡 **안내:** 현재 구글 스프레드시트 링크가 연결되지 않았거나 비어 있어, **기본 샘플 데이터(하이닉스 포함)**로 화면을 띄우고 있습니다.")
     df_portfolio = pd.DataFrame({
         "Ticker": ["QLD", "TQQQ", "SOXL", "000660.KS"],
         "Category": ["레버리지", "레버리지", "반도체", "국내주식"],
@@ -151,7 +148,6 @@ updated_rows = []
 daily_data_dict = {}
 weekly_data_dict = {}
 
-# 주가 데이터 수집 및 한화 환산 계산
 for idx, row in df_portfolio.iterrows():
     ticker = str(row['Ticker']).strip()
     qty = float(row['Quantity'])
@@ -185,7 +181,6 @@ for idx, row in df_portfolio.iterrows():
             "Currency": currency
         })
     except Exception as e:
-        # 데이터 수집 실패 시 예외 처리
         fallback_val = buy_price * qty if currency.upper() == "KRW" else buy_price * qty * usd_krw
         updated_rows.append({
             "Ticker": ticker,
@@ -198,7 +193,6 @@ for idx, row in df_portfolio.iterrows():
         
 df_res = pd.DataFrame(updated_rows)
 
-# 트리맵 시각화
 try:
     fig_tree = px.treemap(
         df_res,
@@ -216,7 +210,7 @@ except Exception as e:
 
 
 # ==========================================
-# 3. 종목별 상세 지표 분석 탭
+# 3. 종목별 상세 지표 분석 탭 (강력한 방어벽 적용)
 # ==========================================
 st.markdown("---")
 st.markdown("### 📊 보유 종목별 상세 지표 및 매수 조건 분석")
@@ -229,58 +223,63 @@ if len(live_tickers) > 0:
             st.subheader(f"{ticker} 상세 지표 분석")
             
             if ticker in daily_data_dict:
-                df_daily = daily_data_dict[ticker]
-                df_weekly = weekly_data_dict[ticker]
-                
-                current_price = float(df_daily.iloc[-1]['Close'])
-                ma200 = float(df_daily.iloc[-1]['MA200'])
-                disparity = ((current_price - ma200) / ma200) * 100
-                current_rsi = float(df_weekly.iloc[-1]['RSI'])
-                
-                curr_symbol = "$" if ".KS" not in ticker and ".KQ" not in ticker else "원"
-                
-                col1, col2, col3 = st.columns(3)
-                with col1:
-                    st.metric(label="현재가", value=f"{current_price:,.2f} {curr_symbol}")
-                with col2:
-                    st.metric(label="200일선 괴리율", value=f"{disparity:.2f}%", delta=f"MA200: {ma200:,.2f}")
-                with col3:
-                    st.metric(label="주봉 RSI (14)", value=f"{current_rsi:.2f}")
+                try:
+                    df_daily = daily_data_dict[ticker]
+                    df_weekly = weekly_data_dict[ticker]
                     
-                st.markdown("---")
-                
-                st.markdown(f"### 🎯 [{ticker}] 분할 매수 조건 판정")
-                criteria_tiers = [
-                    {"name": "1차 매수", "disp": -15.0, "rsi": 45.0},
-                    {"name": "2차 매수", "disp": -25.0, "rsi": 38.0},
-                    {"name": "3차 매수", "disp": -35.0, "rsi": 32.0},
-                ]
-                
-                met_count = 0
-                for tier in criteria_tiers:
-                    is_disp_met = disparity <= tier["disp"]
-                    is_rsi_met = current_rsi <= tier["rsi"]
+                    current_price = float(df_daily.iloc[-1]['Close'])
+                    ma200 = float(df_daily.iloc[-1]['MA200'])
+                    disparity = ((current_price - ma200) / ma200) * 100
+                    current_rsi = float(df_weekly.iloc[-1]['RSI'])
                     
-                    if is_disp_met or is_rsi_met:
-                        met_count += 1
-                        status_str = "🟢 **[충족]**"
-                    else:
-                        status_str = "⚪ (미달)"
+                    curr_symbol = "$" if ".KS" not in ticker and ".KQ" not in ticker else "원"
+                    
+                    col1, col2, col3 = st.columns(3)
+                    with col1:
+                        st.metric(label="현재가", value=f"{current_price:,.2f} {curr_symbol}")
+                    with col2:
+                        st.metric(label="200일선 괴리율", value=f"{disparity:.2f}%", delta=f"MA200: {ma200:,.2f}")
+                    with col3:
+                        st.metric(label="주봉 RSI (14)", value=f"{current_rsi:.2f}")
                         
-                    st.markdown(f"- **{tier['name']}** (목표 괴리율 `{tier['disp']}%` 이하 또는 RSI `{tier['rsi']}` 이하) -> {status_str}")
-                
-                if met_count > 0:
-                    st.success(f"🔥 [{ticker}] 매수 조건 충족 단계 발생!")
-                else:
-                    st.info(f"⏳ [{ticker}] 관망 중")
+                    st.markdown("---")
                     
-                st.markdown("---")
-                st.line_chart(df_daily[['Close', 'MA200']].tail(250))
+                    st.markdown(f"### 🎯 [{ticker}] 분할 매수 조건 판정")
+                    criteria_tiers = [
+                        {"name": "1차 매수", "disp": -15.0, "rsi": 45.0},
+                        {"name": "2차 매수", "disp": -25.0, "rsi": 38.0},
+                        {"name": "3차 매수", "disp": -35.0, "rsi": 32.0},
+                    ]
+                    
+                    met_count = 0
+                    for tier in criteria_tiers:
+                        is_disp_met = disparity <= tier["disp"]
+                        is_rsi_met = current_rsi <= tier["rsi"]
+                        
+                        if is_disp_met or is_rsi_met:
+                            met_count += 1
+                            status_str = "🟢 **[충족]**"
+                        else:
+                            status_str = "⚪ (미달)"
+                            
+                        st.markdown(f"- **{tier['name']}** (목표 괴리율 `{tier['disp']}%` 이하 또는 RSI `{tier['rsi']}` 이하) -> {status_str}")
+                    
+                    if met_count > 0:
+                        st.success(f"🔥 [{ticker}] 매수 조건 충족 단계 발생!")
+                    else:
+                        st.info(f"⏳ [{ticker}] 관망 중")
+                        
+                    st.markdown("---")
+                    st.line_chart(df_daily[['Close', 'MA200']].tail(250))
+                except Exception as ex:
+                    st.warning(f"⚠️ [{ticker}] 데이터를 처리하는 중 문제가 발생했습니다. (티커명 또는 데이터를 확인해주세요)")
+            else:
+                st.error(f"❌ [{ticker}] 티커의 주가 정보를 가져오지 못했습니다. 스프레드시트의 티커명(예: 루시드는 `LCID`)을 정확히 확인해 주세요!")
 
 # 사이드바 정보
 st.sidebar.markdown("---")
 st.sidebar.header("ℹ️ 설정 정보")
 st.sidebar.info(
-    "원화/달러 통합 포트폴리오 대시보드 v3.3\n\n"
-    "스프레드시트 누락 시 자동 샘플 모드 지원"
+    "원화/달러 통합 포트폴리오 대시보드 v3.4\n\n"
+    "잘못된 티커 자동 방어 기능 탑재"
 )

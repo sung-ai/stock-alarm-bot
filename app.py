@@ -73,32 +73,51 @@ for i, ticker in enumerate(tickers):
                 
             st.markdown("---")
             
-            # 매수 조건 명시 및 판정 섹션
-            st.markdown("### 🎯 매수 조건 판정 및 기준")
+            # --- 종목별 맞춤 3단계 분할 매수 조건 설정 ---
+            if ticker == "QLD":
+                criteria_tiers = [
+                    {"name": "1차 매수", "disp": -10.0, "rsi": 48.0},
+                    {"name": "2차 매수", "disp": -18.0, "rsi": 42.0},
+                    {"name": "3차 매수", "disp": -26.0, "rsi": 36.0},
+                ]
+            elif ticker == "TQQQ":
+                criteria_tiers = [
+                    {"name": "1차 매수", "disp": -18.0, "rsi": 43.0},
+                    {"name": "2차 매수", "disp": -32.0, "rsi": 36.0},
+                    {"name": "3차 매수", "disp": -45.0, "rsi": 31.0},
+                ]
+            elif ticker == "SOXL":
+                criteria_tiers = [
+                    {"name": "1차 매수", "disp": -18.0, "rsi": 43.0},
+                    {"name": "2차 매수", "disp": -32.0, "rsi": 36.0},
+                    {"name": "3차 매수", "disp": -45.0, "rsi": 31.0},
+                ]
+
+            st.markdown(f"### 🎯 [{ticker}] 분할 매수 조건 판정 (OR 조건)")
+            st.caption("각 단계별로 '괴리율 기준' 또는 '주봉 RSI 기준' 중 하나 이상 만족하면 충족됩니다.")
             
-            # 기준 정의 (원하시는 숫자로 나중에 수정 가능합니다)
-            disparity_criteria = -5.0  # 200일선 괴리율 -5% 이하
-            rsi_criteria = 35.0       # 주봉 RSI 35 이하
+            met_count = 0
+            for tier in criteria_tiers:
+                is_disp_met = disparity <= tier["disp"]
+                is_rsi_met = current_rsi <= tier["rsi"]
+                is_tier_met = is_disp_met or is_rsi_met
+                
+                if is_tier_met:
+                    met_count += 1
+                    status_str = "🟢 **[충족]**"
+                else:
+                    status_str = "⚪ (미달)"
+                
+                st.markdown(
+                    f"- **{tier['name']}** (괴리율 `{tier['disp']}%` 이하 OR 주봉 RSI `{tier['rsi']}` 이하) "
+                    f"-> {status_str}"
+                )
             
-            # 조건 만족 여부 체크
-            is_disparity_met = disparity <= disparity_criteria
-            is_rsi_met = current_rsi <= rsi_criteria
-            
-            # 화면에 조건 안내 표기
-            st.markdown(
-                f"- **기준 1 (괴리율)**: 200일선 괴리율 **{disparity_criteria}% 이하** (현재: `{disparity:.2f}%`) "
-                f"{'🟢 **[충족]**' if is_disparity_met else '⚪ (미달)'}"
-            )
-            st.markdown(
-                f"- **기준 2 (주봉 RSI)**: RSI **{rsi_criteria} 이하** (현재: `{current_rsi:.2f}`) "
-                f"{'🟢 **[충족]**' if is_rsi_met else '⚪ (미달)'}"
-            )
-            
-            # 종합 판정 박스
-            if is_disparity_met or is_rsi_met:
-                st.success(f"🔥 **[{ticker}] 매수 조건 충족!** 분할 매수 타이밍을 적극적으로 고려해 보세요.")
+            # 종합 판정 결과
+            if met_count > 0:
+                st.success(f"🔥 **[{ticker}] 총 {met_count개 단계의 매수 조건이 충족되었습니다!** 적극적인 분할 매수를 고려해보세요.")
             else:
-                st.info(f"⏳ **[{ticker}] 관망 중** (설정된 매수 기준에 아직 도달하지 않았습니다.)")
+                st.info(f"⏳ **[{ticker}] 관망 중** (현재 설정된 어떤 분할 매수 조건에도 도달하지 않았습니다.)")
             
             st.markdown("---")
             st.markdown("### 📊 최근 주가 및 200일선 추세")
@@ -110,5 +129,5 @@ for i, ticker in enumerate(tickers):
 st.sidebar.header("ℹ️ 설정 정보")
 st.sidebar.info(
     "이 대시보드는 Streamlit Cloud와 yfinance를 활용해 실시간으로 지표를 계산합니다.\n\n"
-    "버전: v1.1 (매수 조건 판정 추가)"
+    "버전: v1.2 (종목별 맞춤 3단계 분할 매수 조건 적용)"
 )

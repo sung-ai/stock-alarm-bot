@@ -6,13 +6,13 @@ import plotly.express as px
 
 # 페이지 기본 설정
 st.set_page_config(
-    page_title="주식 기술적 지표 모니터링 대시보드",
+    page_title="주식 포트폴리오 & 지표 모니터링 대시보드",
     page_icon="📈",
     layout="wide"
 )
 
-st.title("📈 QLD · TQQQ · SOXL 실시간 모니터링 대시보드")
-st.markdown("깃허브 클라우드 기반으로 동작하는 나만의 투자 지표 대시보드입니다.")
+st.title("📈 내 맞춤형 실시간 주식 포트폴리오 대시보드 (원화/달러 통합)")
+st.markdown("구글 스프레드시트와 연동되어 해외주식(달러)과 국내주식(원화)을 한화 기준으로 통합 관리합니다.")
 st.markdown("---")
 
 # RSI 계산 함수
@@ -25,21 +25,30 @@ def calculate_rsi(data, window=14):
     return rsi
 
 # 데이터 분석 함수 (종목 데이터)
-@st.cache_data(ttl=3600) # 1시간 동안 데이터 캐싱 (속도 향상)
+@st.cache_data(ttl=3600)
 def get_stock_data(ticker):
-    # 일봉 데이터 (200일선 계산용)
     df_daily = yf.download(ticker, period="2y", interval="1d", progress=False)
     if isinstance(df_daily.columns, pd.MultiIndex):
         df_daily.columns = df_daily.columns.get_level_values(0)
     df_daily['MA200'] = df_daily['Close'].rolling(window=200).mean()
     
-    # 주봉 데이터 (RSI 계산용)
     df_weekly = yf.download(ticker, period="3y", interval="1wk", progress=False)
     if isinstance(df_weekly.columns, pd.MultiIndex):
         df_weekly.columns = df_weekly.columns.get_level_values(0)
     df_weekly['RSI'] = calculate_rsi(df_weekly['Close'], window=14)
     
     return df_daily, df_weekly
+
+# 실시간 환율(USD/KRW) 가져오기 함수
+@st.cache_data(ttl=3600)
+def get_exchange_rate():
+    try:
+        ex_df = yf.download("USDKRW=X", period="5d", interval="1d", progress=False)
+        if isinstance(ex_df.columns, pd.MultiIndex):
+            ex_df.columns = ex_df.columns.get_level_values(0)
+        return ex_df.iloc[-1]['Close']
+    except:
+        return 1350.0 # 환율 조회 실패 시 기본값 대안
 
 # VIX(공포지수) 가져오기 함수
 @st.cache_data(ttl=3600)
@@ -54,7 +63,7 @@ def get_vix_data():
 
 
 # ==========================================
-# 1. 시장 심리 및 공포지수 기준 안내 섹션 (최상단)
+# 1. 시장 심리 및 공포지수 기준 안내 (최상단)
 # ==========================================
 st.markdown("### 🌪️ [먼저 확인] 시장 심리 및 공포지수 기준 안내")
 
@@ -68,30 +77,29 @@ try:
         st.markdown("#### 📐 CNN 공포탐욕 지수 기준표 (0 ~ 100)")
         st.markdown(
             """
-            * **0 ~ 24 (🔴 극단적 공포 - Extreme Fear):** 시장 패닉 상태. 역사적 바닥권일 확률이 높아 공격적 매수 기회.
-            * **25 ~ 44 (🟠 공포 - Fear):** 투자 심리 위축. 분할 매수를 시작하기 좋은 구간.
-            * **45 ~ 55 (⚪ 중립 - Neutral):** 시장 방향성이 뚜렷하지 않은 관망 구간.
-            * **56 ~ 75 (🔵 탐욕 - Greed):** 상승 기대감 확산, 서서히 주의가 필요한 구간.
-            * **76 ~ 100 (🟢 극단적 탐욕 - Extreme Greed):** 과열 구간. 차익 실현 및 현금 확보를 고려해야 할 시기.
+            * **0 ~ 24 (🔴 극단적 공포):** 패닉 셀링 구간, 공격적 매수 기회.
+            * **25 ~ 44 (🟠 공포):** 투자 심리 위축, 분할 매수 시작 구간.
+            * **45 ~ 55 (⚪ 중립):** 시장 관망 구간.
+            * **56 ~ 75 (🔵 탐욕):** 상승 기대감 확산, 주의 구간.
+            * **76 ~ 100 (🟢 극단적 탐욕):** 과열 구간, 차익 실현 고려.
             """
         )
 
     with col_status:
         st.markdown("#### 📊 현재 시장 심리 상태 판정")
-        st.metric(label="VIX Index (참고용 변동성)", value=f"{current_vix:.2f}", delta=f"{vix_change:+.2f}")
-        st.metric(label="환산 공포탐욕 점수 (대략적)", value=f"{fng_approx}점 / 100점")
+        st.metric(label="VIX Index (변동성)", value=f"{current_vix:.2f}", delta=f"{vix_change:+.2f}")
+        st.metric(label="환산 공포탐욕 점수", value=f"{fng_approx}점 / 100점")
         
-        # 구간별 메시지 출력
         if fng_approx <= 24:
-            st.error("🚨 현재 상태: **극단적 공포 (Extreme Fear)** - 적극적인 분할 매수 타점입니다!")
+            st.error("🚨 현재 상태: **극단적 공포** - 적극적인 분할 매수 타점!")
         elif fng_approx <= 44:
-            st.warning("⚠️ 현재 상태: **공포 (Fear)** - 시장 심리가 위축되어 분할 매수를 고려할 시기입니다.")
+            st.warning("⚠️ 현재 상태: **공포** - 분할 매수를 고려할 시기입니다.")
         elif fng_approx <= 55:
-            st.info("ℹ️ 현재 상태: **중립 (Neutral)** - 시장이 평온하며 관망하는 구간입니다.")
+            st.info("ℹ️ 현재 상태: **중립** - 시장이 평온합니다.")
         elif fng_approx <= 75:
-            st.success("🙂 현재 상태: **탐욕 (Greed)** - 상승 추세이나 과열을 주시해야 합니다.")
+            st.success("🙂 현재 상태: **탐욕** - 상승 추세이나 과열 주시.")
         else:
-            st.markdown("🔥 현재 상태: **극단적 탐욕 (Extreme Greed)** - 시장 과열! 리스크 관리가 필요합니다.")
+            st.markdown("🔥 현재 상태: **극단적 탐욕** - 리스크 관리 필요!")
 
 except Exception as e:
     st.warning("시장 심리 데이터를 불러오는 중 오류가 발생했습니다.")
@@ -100,158 +108,168 @@ st.markdown("---")
 
 
 # ==========================================
-# 2. 내 포트폴리오 비중 및 수익률 사각형 맵 (트리맵)
+# 2. 구글 스프레드시트 연동 및 포트폴리오 트리맵 (원화 환산)
 # ==========================================
-st.markdown("### 🗂️ 내 포트폴리오 비중 & 수익률 맵")
-st.caption("사이드바(또는 아래 설정)에서 각 종목별 보유 금액(투자금)을 입력하면 박스 크기가 비중에 맞게 자동으로 조절됩니다.")
+st.markdown("### 🗂️ 내 실시간 포트폴리오 비중 & 수익률 맵 (통합 한화 기준)")
+st.caption("달러 종목은 실시간 환율을 곱해 원화로 환산하고, SK하이닉스 같은 원화 종목과 합쳐서 전체 비중을 계산합니다.")
 
-# 사이드바에서 보유 금액 설정 기능 추가
-st.sidebar.header("💰 내 포트폴리오 설정")
-qld_amount = st.sidebar.number_input("QLD 보유 금액 ($)", min_value=0.0, value=3000.0, step=500.0)
-tqqq_amount = st.sidebar.number_input("TQQQ 보유 금액 ($)", min_value=0.0, value=5000.0, step=500.0)
-soxl_amount = st.sidebar.number_input("SOXL 보유 금액 ($)", min_value=0.0, value=2000.0, step=500.0)
+# 💡 본인의 구글 스프레드시트 CSV 링크를 아래에 넣어주세요!
+sheet_url = "https://docs.google.com/spreadsheets/d/e/2PACX-1vSnJDMSAnAwt8OwdYW0-RcxtVWGotd4oahXuqS7BRcUD-dFK05JA8cXMLdGpBVOV7cR3A9n7pLb9JKb/pub?gid=0&single=true&output=csv"
 
-with st.spinner("포트폴리오 비중 데이터를 계산하는 중..."):
-    # 실시간 가격 조회를 위한 임시 데이터 수집
-    q_data, _ = get_stock_data("QLD")
-    t_data, _ = get_stock_data("TQQQ")
-    s_data, _ = get_stock_data("SOXL")
-    
-    qld_price = q_data.iloc[-1]['Close']
-    tqqq_price = t_data.iloc[-1]['Close']
-    soxl_price = s_data.iloc[-1]['Close']
-    
-    # 임의의 평단가 대비 오늘 수익률 가상 계산 (실제 평단가가 없으므로 최근 20일 전 가격 대비로 예시 구현)
-    qld_ret = ((qld_price - q_data.iloc[-20]['Close']) / q_data.iloc[-20]['Close']) * 100
-    tqqq_ret = ((tqqq_price - t_data.iloc[-20]['Close']) / t_data.iloc[-20]['Close']) * 100
-    soxl_ret = ((soxl_price - s_data.iloc[-20]['Close']) / s_data.iloc[-20]['Close']) * 100
+usd_krw = get_exchange_rate()
+st.sidebar.metric("환율 (USD/KRW)", f"{usd_krw:,.2f} 원")
 
-    portfolio_data = pd.DataFrame({
-        "Ticker": ["QLD", "TQQQ", "SOXL"],
-        "Amount": [qld_amount, tqqq_amount, soxl_amount],
-        "Return": [qld_ret, tqqq_ret, soxl_ret],
-        "Category": ["나스닥 레버리지", "나스닥 3배", "반도체 3배"]
-    })
+portfolio_loaded = False
+try:
+    if "YOUR_GOOGLE_SHEET_CSV_URL" not in sheet_url:
+        df_portfolio = pd.read_csv(sheet_url)
+        portfolio_loaded = True
+    else:
+        # 샘플 데이터 (SK하이닉스 000660.KS 포함)
+        df_portfolio = pd.DataFrame({
+            "Ticker": ["QLD", "TQQQ", "SOXL", "000660.KS"],
+            "Category": ["레버리지", "레버리지", "반도체", "국내주식"],
+            "Quantity": [50, 100, 200, 10],
+            "BuyPrice": [80.0, 50.0, 20.0, 150000.0],
+            "Currency": ["USD", "USD", "USD", "KRW"]
+        })
+        st.info("💡 안내: 샘플 데이터로 실행 중입니다. 코드 안의 `sheet_url`을 본인 구글 스프레드시트 링크로 변경해주세요!")
+        portfolio_loaded = True
+except Exception as e:
+    st.error(f"구글 스프레드시트를 불러오는 중 에러 발생: {e}")
+
+if portfolio_loaded:
+    live_tickers = df_portfolio['Ticker'].tolist()
+    updated_rows = []
+    daily_data_dict = {}
+    weekly_data_dict = {}
     
-    # 트리맵(사각형 박스 맵) 생성
+    for idx, row in df_portfolio.iterrows():
+        ticker = row['Ticker']
+        qty = row['Quantity']
+        buy_price = row['BuyPrice']
+        currency = row['Currency']
+        category = row['Category']
+        
+        try:
+            df_d, df_w = get_stock_data(ticker)
+            daily_data_dict[ticker] = df_d
+            weekly_data_dict[ticker] = df_w
+            
+            raw_current_price = df_d.iloc[-1]['Close']
+            
+            # 통화에 따른 원화 환산 처리
+            if currency == "USD":
+                current_price_krw = raw_current_price * usd_krw
+                buy_price_krw = buy_price * usd_krw
+            else: # KRW
+                current_price_krw = raw_current_price
+                buy_price_krw = buy_price
+                
+            total_value_krw = current_price_krw * qty
+            return_pct = ((raw_current_price - buy_price) / buy_price) * 100
+            
+            updated_rows.append({
+                "Ticker": ticker,
+                "Category": category,
+                "TotalValue": total_value_krw,
+                "Return": return_pct,
+                "CurrentPrice": raw_current_price,
+                "Currency": currency
+            })
+        except Exception as e:
+            updated_rows.append({
+                "Ticker": ticker,
+                "Category": category,
+                "TotalValue": buy_price * qty if currency == "KRW" else buy_price * qty * usd_krw,
+                "Return": 0.0,
+                "CurrentPrice": buy_price,
+                "Currency": currency
+            })
+            
+    df_res = pd.DataFrame(updated_rows)
+    
+    # 트리맵 시각화 (한화 평가금액 기준 박스 크기)
     fig_tree = px.treemap(
-        portfolio_data,
+        df_res,
         path=['Category', 'Ticker'],
-        values='Amount',
+        values='TotalValue',
         color='Return',
-        color_continuous_scale='RdYlGn', # 빨강(손실) -> 노랑 -> 초록(수익)
+        color_continuous_scale='RdYlGn',
         color_continuous_midpoint=0,
-        range_color=[-15, 15]
+        range_color=[-20, 20]
     )
-    fig_tree.update_layout(height=300, margin=dict(l=10, r=10, t=10, b=10))
+    fig_tree.update_layout(height=350, margin=dict(l=10, r=10, t=10, b=10))
     st.plotly_chart(fig_tree, use_container_width=True)
 
+
+# ==========================================
+# 3. 종목별 상세 지표 분석
+# ==========================================
 st.markdown("---")
+st.markdown("### 📊 보유 종목별 상세 지표 및 매수 조건 분석")
 
-
-# ==========================================
-# 3. 종목별 상세 지표 분석 (QLD, TQQQ, SOXL)
-# ==========================================
-tickers = ["QLD", "TQQQ", "SOXL"]
-tabs = st.tabs(tickers)
-
-for i, ticker in enumerate(tickers):
-    with tabs[i]:
-        st.subheader(f"{ticker} 상세 지표 분석")
-        
-        with st.spinner(f"{ticker} 데이터를 불러오는 중..."):
-            if ticker == "QLD":
-                df_daily, df_weekly = q_data, get_stock_data("QLD")[1]
-                current_price = qld_price
-                disparity = ((current_price - df_daily.iloc[-1]['MA200']) / df_daily.iloc[-1]['MA200']) * 100
-                current_rsi = df_weekly.iloc[-1]['RSI']
-            elif ticker == "TQQQ":
-                df_daily, df_weekly = t_data, get_stock_data("TQQQ")[1]
-                current_price = tqqq_price
-                disparity = ((current_price - df_daily.iloc[-1]['MA200']) / df_daily.iloc[-1]['MA200']) * 100
-                current_rsi = df_weekly.iloc[-1]['RSI']
-            else:
-                df_daily, df_weekly = s_data, get_stock_data("SOXL")[1]
-                current_price = soxl_price
-                disparity = ((current_price - df_daily.iloc[-1]['MA200']) / df_daily.iloc[-1]['MA200']) * 100
+if portfolio_loaded and len(live_tickers) > 0:
+    tabs = st.tabs(live_tickers)
+    
+    for i, ticker in enumerate(live_tickers):
+        with tabs[i]:
+            st.subheader(f"{ticker} 상세 지표 분석")
+            
+            if ticker in daily_data_dict:
+                df_daily = daily_data_dict[ticker]
+                df_weekly = weekly_data_dict[ticker]
+                
+                current_price = df_daily.iloc[-1]['Close']
+                ma200 = df_daily.iloc[-1]['MA200']
+                disparity = ((current_price - ma200) / ma200) * 100
                 current_rsi = df_weekly.iloc[-1]['RSI']
                 
-            ma200 = df_daily.iloc[-1]['MA200']
-            
-            # 메인 지표 3분할 카드
-            col1, col2, col3 = st.columns(3)
-            with col1:
-                st.metric(label="현재가 (USD)", value=f"${current_price:.2f}")
-            with col2:
-                st.metric(label="200일선 괴리율", value=f"{disparity:.2f}%", delta=f"MA200: ${ma200:.2f}")
-            with col3:
-                st.metric(label="주봉 RSI (14)", value=f"{current_rsi:.2f}")
+                # 화폐 단위 표시 분기
+                curr_symbol = "$" if ".KS" not in ticker and ".KQ" not in ticker else "원"
                 
-            st.markdown("---")
-            
-            # --- 종목별 맞춤 3단계 분할 매수 조건 설정 ---
-            if ticker == "QLD":
-                criteria_tiers = [
-                    {"name": "1차 매수", "disp": -10.0, "rsi": 48.0},
-                    {"name": "2차 매수", "disp": -18.0, "rsi": 42.0},
-                    {"name": "3차 매수", "disp": -26.0, "rsi": 36.0},
-                ]
-            elif ticker == "TQQQ":
-                criteria_tiers = [
-                    {"name": "1차 매수", "disp": -18.0, "rsi": 43.0},
-                    {"name": "2차 매수", "disp": -32.0, "rsi": 36.0},
-                    {"name": "3차 매수", "disp": -45.0, "rsi": 31.0},
-                ]
-            elif ticker == "SOXL":
-                criteria_tiers = [
-                    {"name": "1차 매수", "disp": -18.0, "rsi": 43.0},
-                    {"name": "2차 매수", "disp": -32.0, "rsi": 36.0},
-                    {"name": "3차 매수", "disp": -45.0, "rsi": 31.0},
-                ]
-
-            st.markdown(f"### 🎯 [{ticker}] 분할 매수 조건 판정 (OR 조건)")
-            st.caption("각 단계별 목표치와 현재 수치의 차이를 함께 표시합니다.")
-            
-            met_count = 0
-            for tier in criteria_tiers:
-                is_disp_met = disparity <= tier["disp"]
-                is_rsi_met = current_rsi <= tier["rsi"]
+                col1, col2, col3 = st.columns(3)
+                with col1:
+                    st.metric(label="현재가", value=f"{current_price:,.2f} {curr_symbol}")
+                with col2:
+                    st.metric(label="200일선 괴리율", value=f"{disparity:.2f}%", delta=f"MA200: {ma200:,.2f}")
+                with col3:
+                    st.metric(label="주봉 RSI (14)", value=f"{current_rsi:.2f}")
+                    
+                st.markdown("---")
                 
-                disp_gap = disparity - tier["disp"]
-                rsi_gap = current_rsi - tier["rsi"]
+                st.markdown(f"### 🎯 [{ticker}] 분할 매수 조건 판정")
+                criteria_tiers = [
+                    {"name": "1차 매수", "disp": -15.0, "rsi": 45.0},
+                    {"name": "2차 매수", "disp": -25.0, "rsi": 38.0},
+                    {"name": "3차 매수", "disp": -35.0, "rsi": 32.0},
+                ]
                 
-                if is_disp_met and is_rsi_met:
-                    met_count += 1
-                    status_str = "🟢 **[충족]** (괴리율 & RSI 모두 충족)"
-                elif is_disp_met:
-                    met_count += 1
-                    status_str = f"🟢 **[충족]** (괴리율 충족 / RSI는 기준 초과 +{rsi_gap:.1f})"
-                elif is_rsi_met:
-                    met_count += 1
-                    status_str = f"🟢 **[충족]** (RSI 충족 / 괴리율은 기준 초과 +{disp_gap:.1f}%)"
+                met_count = 0
+                for tier in criteria_tiers:
+                    is_disp_met = disparity <= tier["disp"]
+                    is_rsi_met = current_rsi <= tier["rsi"]
+                    
+                    if is_disp_met or is_rsi_met:
+                        met_count += 1
+                        status_str = "🟢 **[충족]**"
+                    else:
+                        status_str = "⚪ (미달)"
+                        
+                    st.markdown(f"- **{tier['name']}** (목표 괴리율 `{tier['disp']}%` 이하 또는 RSI `{tier['rsi']}` 이하) -> {status_str}")
+                
+                if met_count > 0:
+                    st.success(f"🔥 [{ticker}] 매수 조건 충족 단계 발생!")
                 else:
-                    status_str = f"⚪ (미달: 괴리율 {disp_gap:+.1f}%p, RSI {rsi_gap:+.1f})"
-                
-                st.markdown(
-                    f"- **{tier['name']}** (목표 괴리율 `{tier['disp']}%` 이하 / 목표 RSI `{tier['rsi']}` 이하) "
-                    f"-> {status_str}"
-                )
-            
-            # 종합 판정 결과
-            if met_count > 0:
-                st.success(f"🔥 **[{ticker}] 총 {met_count}개 단계의 매수 조건이 충족되었습니다!** 적극적인 분할 매수를 고려해보세요.")
-            else:
-                st.info(f"⏳ **[{ticker}] 관망 중** (현재 설정된 어떤 분할 매수 조건에도 도달하지 않았습니다.)")
-            
-            st.markdown("---")
-            st.markdown("### 📊 최근 주가 및 200일선 추세")
-            chart_df = df_daily[['Close', 'MA200']].tail(250)
-            st.line_chart(chart_df)
+                    st.info(f"⏳ [{ticker}] 관망 중")
+                    
+                st.markdown("---")
+                st.line_chart(df_daily[['Close', 'MA200']].tail(250))
 
 # 사이드바 정보
 st.sidebar.markdown("---")
 st.sidebar.header("ℹ️ 설정 정보")
 st.sidebar.info(
-    "이 대시보드는 Streamlit Cloud와 yfinance를 활용해 실시간으로 지표를 계산합니다.\n\n"
-    "버전: v2.0 (포트폴리오 비중 트리맵 추가)"
+    "원화/달러 통합 포트폴리오 대시보드 v3.1\n\n"
+    "SK하이닉스(000660.KS) 등 국내 주식 동시 지원"
 )

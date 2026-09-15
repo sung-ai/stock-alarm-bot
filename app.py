@@ -51,10 +51,57 @@ def get_vix_data():
     vix_change = current_vix - prev_vix
     return current_vix, vix_change
 
-# 종목 리스트
-tickers = ["QLD", "TQQQ", "SOXL"]
 
-# 탭으로 종목 구분
+# ==========================================
+# 1. [맨 위로 이동] 시장 심리 및 공포지수 기준 안내 섹션
+# ==========================================
+st.markdown("### 🌪️ [먼저 확인] 시장 심리 및 공포지수 기준 안내")
+
+try:
+    current_vix, vix_change = get_vix_data()
+    fng_approx = min(max(int((current_vix - 10) * 3.33), 0), 100)
+    
+    col_info, col_status = st.columns(2)
+    
+    with col_info:
+        st.markdown("#### 📐 CNN 공포탐욕 지수 기준표 (0 ~ 100)")
+        st.markdown(
+            """
+            * **0 ~ 24 (🔴 극단적 공포 - Extreme Fear):** 시장 패닉 상태. 역사적 바닥권일 확률이 높아 공격적 매수 기회.
+            * **25 ~ 44 (🟠 공포 - Fear):** 투자 심리 위축. 분할 매수를 시작하기 좋은 구간.
+            * **45 ~ 55 (⚪ 중립 - Neutral):** 시장 방향성이 뚜렷하지 않은 관망 구간.
+            * **56 ~ 75 (🔵 탐욕 - Greed):** 상승 기대감 확산, 서서히 주의가 필요한 구간.
+            * **76 ~ 100 (🟢 극단적 탐욕 - Extreme Greed):** 과열 구간. 차익 실현 및 현금 확보를 고려해야 할 시기.
+            """
+        )
+
+    with col_status:
+        st.markdown("#### 📊 현재 시장 심리 상태 판정")
+        st.metric(label="VIX Index (참고용 변동성)", value=f"{current_vix:.2f}", delta=f"{vix_change:+.2f}")
+        st.metric(label="환산 공포탐욕 점수 (대략적)", value=f"{fng_approx}점 / 100점")
+        
+        # 구간별 메시지 출력
+        if fng_approx <= 24:
+            st.error("🚨 현재 상태: **극단적 공포 (Extreme Fear)** - 적극적인 분할 매수 타점입니다!")
+        elif fng_approx <= 44:
+            st.warning("⚠️ 현재 상태: **공포 (Fear)** - 시장 심리가 위축되어 분할 매수를 고려할 시기입니다.")
+        elif fng_approx <= 55:
+            st.info("ℹ️ 현재 상태: **중립 (Neutral)** - 시장이 평온하며 관망하는 구간입니다.")
+        elif fng_approx <= 75:
+            st.success("🙂 현재 상태: **탐욕 (Greed)** - 상승 추세이나 과열을 주시해야 합니다.")
+        else:
+            st.markdown("🔥 현재 상태: **극단적 탐욕 (Extreme Greed)** - 시장 과열! 리스크 관리가 필요합니다.")
+
+except Exception as e:
+    st.warning("시장 심리 데이터를 불러오는 중 오류가 발생했습니다.")
+
+st.markdown("---")
+
+
+# ==========================================
+# 2. 종목별 상세 지표 분석 (QLD, TQQQ, SOXL)
+# ==========================================
+tickers = ["QLD", "TQQQ", "SOXL"]
 tabs = st.tabs(tickers)
 
 for i, ticker in enumerate(tickers):
@@ -143,51 +190,9 @@ for i, ticker in enumerate(tickers):
             chart_df = df_daily[['Close', 'MA200']].tail(250)
             st.line_chart(chart_df)
 
-# --- 대시보드 하단 시장 심리 및 공포지수 기준 안내 섹션 ---
-st.markdown("---")
-st.markdown("### 🌪️ 시장 심리 및 공포지수 기준 안내")
-
-try:
-    current_vix, vix_change = get_vix_data()
-    fng_approx = min(max(int((current_vix - 10) * 3.33), 0), 100)
-    
-    col_info, col_status = st.columns(2)
-    
-    with col_info:
-        st.markdown("#### 📐 CNN 공포탐욕 지수 기준표 (0 ~ 100)")
-        st.markdown(
-            """
-            * **0 ~ 24 (🔴 극단적 공포 - Extreme Fear):** 시장 패닉 상태. 역사적 바닥권일 확률이 높아 공격적 매수 기회.
-            * **25 ~ 44 (🟠 공포 - Fear):** 투자 심리 위축. 분할 매수를 시작하기 좋은 구간.
-            * **45 ~ 55 (⚪ 중립 - Neutral):** 시장 방향성이 뚜렷하지 않은 관망 구간.
-            * **56 ~ 75 (🔵 탐욕 - Greed):** 상승 기대감 확산, 서서히 주의가 필요한 구간.
-            * **76 ~ 100 (🟢 극단적 탐욕 - Extreme Greed):** 과열 구간. 차익 실현 및 현금 확보를 고려해야 할 시기.
-            """
-        )
-
-    with col_status:
-        st.markdown("#### 📊 현재 시장 심리 상태 판정")
-        st.metric(label="VIX Index (참고용 변동성)", value=f"{current_vix:.2f}", delta=f"{vix_change:+.2f}")
-        st.metric(label="환산 공포탐욕 점수 (대략적)", value=f"{fng_approx}점 / 100점")
-        
-        # 구간별 메시지 출력
-        if fng_approx <= 24:
-            st.error("🚨 현재 상태: **극단적 공포 (Extreme Fear)** - 적극적인 분할 매수 타점입니다!")
-        elif fng_approx <= 44:
-            st.warning("⚠️ 현재 상태: **공포 (Fear)** - 시장 심리가 위축되어 분할 매수를 고려할 시기입니다.")
-        elif fng_approx <= 55:
-            st.info("ℹ️ 현재 상태: **중립 (Neutral)** - 시장이 평온하며 관망하는 구간입니다.")
-        elif fng_approx <= 75:
-            st.success("🙂 현재 상태: **탐욕 (Greed)** - 상승 추세이나 과열을 주시해야 합니다.")
-        else:
-            st.fire("🔥 현재 상태: **극단적 탐욕 (Extreme Greed)** - 시장 과열! 리스크 관리가 필요합니다.")
-
-except Exception as e:
-    st.warning("시장 심리 데이터를 불러오는 중 오류가 발생했습니다.")
-
 # 사이드바 정보
 st.sidebar.header("ℹ️ 설정 정보")
 st.sidebar.info(
     "이 대시보드는 Streamlit Cloud와 yfinance를 활용해 실시간으로 지표를 계산합니다.\n\n"
-    "버전: v1.8 (공포탐욕 기준표 및 텍스트 가이드 적용)"
+    "버전: v1.9 (시장 심리 지표 최상단 배치)"
 )

@@ -94,26 +94,32 @@ for i, ticker in enumerate(tickers):
                 ]
 
             st.markdown(f"### 🎯 [{ticker}] 분할 매수 조건 판정 (OR 조건)")
-            st.caption("각 단계별로 '괴리율 기준' 또는 '주봉 RSI 기준' 중 하나 이상 만족하면 충족됩니다.")
+            st.caption("각 단계별로 '괴리율 기준' 또는 '주봉 RSI 기준' 중 무엇으로 충족되었는지 상세히 표시됩니다.")
             
             met_count = 0
             for tier in criteria_tiers:
                 is_disp_met = disparity <= tier["disp"]
                 is_rsi_met = current_rsi <= tier["rsi"]
-                is_tier_met = is_disp_met or is_rsi_met
                 
-                if is_tier_met:
+                # 어떤 조건으로 충족되었는지 상세 분기 처리
+                if is_disp_met and is_rsi_met:
                     met_count += 1
-                    status_str = "🟢 **[충족]**"
+                    status_str = "🟢 **[충족]** (괴리율 & RSI 모두 충족)"
+                elif is_disp_met:
+                    met_count += 1
+                    status_str = "🟢 **[충족]** (괴리율 조건 충족)"
+                elif is_rsi_met:
+                    met_count += 1
+                    status_str = "🟢 **[충족]** (주봉 RSI 조건 충족)"
                 else:
                     status_str = "⚪ (미달)"
                 
                 st.markdown(
-                    f"- **{tier['name']}** (괴리율 `{tier['disp']}%` 이하 OR 주봉 RSI `{tier['rsi']}` 이하) "
+                    f"- **{tier['name']}** (목표 괴리율 `{tier['disp']}%` 이하 / 목표 RSI `{tier['rsi']}` 이하) "
                     f"-> {status_str}"
                 )
             
-            # 종합 판정 결과 (수정 완료)
+            # 종합 판정 결과
             if met_count > 0:
                 st.success(f"🔥 **[{ticker}] 총 {met_count}개 단계의 매수 조건이 충족되었습니다!** 적극적인 분할 매수를 고려해보세요.")
             else:
@@ -129,5 +135,5 @@ for i, ticker in enumerate(tickers):
 st.sidebar.header("ℹ️ 설정 정보")
 st.sidebar.info(
     "이 대시보드는 Streamlit Cloud와 yfinance를 활용해 실시간으로 지표를 계산합니다.\n\n"
-    "버전: v1.21 (매수 조건 텍스트 문법 오류 수정)"
+    "버전: v1.3 (매수 충족 사유 상세 표시 기능 추가)"
 )

@@ -113,9 +113,9 @@ for i, ticker in enumerate(tickers):
                     f"-> {status_str}"
                 )
             
-            # 종합 판정 결과
+            # 종합 판정 결과 (수정 완료)
             if met_count > 0:
-                st.success(f"🔥 **[{ticker}] 총 {met_count개 단계의 매수 조건이 충족되었습니다!** 적극적인 분할 매수를 고려해보세요.")
+                st.success(f"🔥 **[{ticker}] 총 {met_count}개 단계의 매수 조건이 충족되었습니다!** 적극적인 분할 매수를 고려해보세요.")
             else:
                 st.info(f"⏳ **[{ticker}] 관망 중** (현재 설정된 어떤 분할 매수 조건에도 도달하지 않았습니다.)")
             
@@ -129,5 +129,5 @@ for i, ticker in enumerate(tickers):
 st.sidebar.header("ℹ️ 설정 정보")
 st.sidebar.info(
     "이 대시보드는 Streamlit Cloud와 yfinance를 활용해 실시간으로 지표를 계산합니다.\n\n"
-    "버전: v1.2 (종목별 맞춤 3단계 분할 매수 조건 적용)"
+    "버전: v1.21 (매수 조건 텍스트 문법 오류 수정)"
 )

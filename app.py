@@ -2,6 +2,7 @@ import streamlit as st
 import pandas as pd
 import yfinance as yf
 import datetime
+import plotly.express as px
 
 # 페이지 기본 설정
 st.set_page_config(
@@ -53,7 +54,7 @@ def get_vix_data():
 
 
 # ==========================================
-# 1. [맨 위로 이동] 시장 심리 및 공포지수 기준 안내 섹션
+# 1. 시장 심리 및 공포지수 기준 안내 섹션 (최상단)
 # ==========================================
 st.markdown("### 🌪️ [먼저 확인] 시장 심리 및 공포지수 기준 안내")
 
@@ -99,7 +100,57 @@ st.markdown("---")
 
 
 # ==========================================
-# 2. 종목별 상세 지표 분석 (QLD, TQQQ, SOXL)
+# 2. 내 포트폴리오 비중 및 수익률 사각형 맵 (트리맵)
+# ==========================================
+st.markdown("### 🗂️ 내 포트폴리오 비중 & 수익률 맵")
+st.caption("사이드바(또는 아래 설정)에서 각 종목별 보유 금액(투자금)을 입력하면 박스 크기가 비중에 맞게 자동으로 조절됩니다.")
+
+# 사이드바에서 보유 금액 설정 기능 추가
+st.sidebar.header("💰 내 포트폴리오 설정")
+qld_amount = st.sidebar.number_input("QLD 보유 금액 ($)", min_value=0.0, value=3000.0, step=500.0)
+tqqq_amount = st.sidebar.number_input("TQQQ 보유 금액 ($)", min_value=0.0, value=5000.0, step=500.0)
+soxl_amount = st.sidebar.number_input("SOXL 보유 금액 ($)", min_value=0.0, value=2000.0, step=500.0)
+
+with st.spinner("포트폴리오 비중 데이터를 계산하는 중..."):
+    # 실시간 가격 조회를 위한 임시 데이터 수집
+    q_data, _ = get_stock_data("QLD")
+    t_data, _ = get_stock_data("TQQQ")
+    s_data, _ = get_stock_data("SOXL")
+    
+    qld_price = q_data.iloc[-1]['Close']
+    tqqq_price = t_data.iloc[-1]['Close']
+    soxl_price = s_data.iloc[-1]['Close']
+    
+    # 임의의 평단가 대비 오늘 수익률 가상 계산 (실제 평단가가 없으므로 최근 20일 전 가격 대비로 예시 구현)
+    qld_ret = ((qld_price - q_data.iloc[-20]['Close']) / q_data.iloc[-20]['Close']) * 100
+    tqqq_ret = ((tqqq_price - t_data.iloc[-20]['Close']) / t_data.iloc[-20]['Close']) * 100
+    soxl_ret = ((soxl_price - s_data.iloc[-20]['Close']) / s_data.iloc[-20]['Close']) * 100
+
+    portfolio_data = pd.DataFrame({
+        "Ticker": ["QLD", "TQQQ", "SOXL"],
+        "Amount": [qld_amount, tqqq_amount, soxl_amount],
+        "Return": [qld_ret, tqqq_ret, soxl_ret],
+        "Category": ["나스닥 레버리지", "나스닥 3배", "반도체 3배"]
+    })
+    
+    # 트리맵(사각형 박스 맵) 생성
+    fig_tree = px.treemap(
+        portfolio_data,
+        path=['Category', 'Ticker'],
+        values='Amount',
+        color='Return',
+        color_continuous_scale='RdYlGn', # 빨강(손실) -> 노랑 -> 초록(수익)
+        color_continuous_midpoint=0,
+        range_color=[-15, 15]
+    )
+    fig_tree.update_layout(height=300, margin=dict(l=10, r=10, t=10, b=10))
+    st.plotly_chart(fig_tree, use_container_width=True)
+
+st.markdown("---")
+
+
+# ==========================================
+# 3. 종목별 상세 지표 분석 (QLD, TQQQ, SOXL)
 # ==========================================
 tickers = ["QLD", "TQQQ", "SOXL"]
 tabs = st.tabs(tickers)
@@ -109,16 +160,23 @@ for i, ticker in enumerate(tickers):
         st.subheader(f"{ticker} 상세 지표 분석")
         
         with st.spinner(f"{ticker} 데이터를 불러오는 중..."):
-            df_daily, df_weekly = get_stock_data(ticker)
-            
-            if df_daily.empty or df_weekly.empty:
-                st.error("데이터를 불러오지 못했습니다.")
-                continue
+            if ticker == "QLD":
+                df_daily, df_weekly = q_data, get_stock_data("QLD")[1]
+                current_price = qld_price
+                disparity = ((current_price - df_daily.iloc[-1]['MA200']) / df_daily.iloc[-1]['MA200']) * 100
+                current_rsi = df_weekly.iloc[-1]['RSI']
+            elif ticker == "TQQQ":
+                df_daily, df_weekly = t_data, get_stock_data("TQQQ")[1]
+                current_price = tqqq_price
+                disparity = ((current_price - df_daily.iloc[-1]['MA200']) / df_daily.iloc[-1]['MA200']) * 100
+                current_rsi = df_weekly.iloc[-1]['RSI']
+            else:
+                df_daily, df_weekly = s_data, get_stock_data("SOXL")[1]
+                current_price = soxl_price
+                disparity = ((current_price - df_daily.iloc[-1]['MA200']) / df_daily.iloc[-1]['MA200']) * 100
+                current_rsi = df_weekly.iloc[-1]['RSI']
                 
-            current_price = df_daily.iloc[-1]['Close']
             ma200 = df_daily.iloc[-1]['MA200']
-            disparity = ((current_price - ma200) / ma200) * 100
-            current_rsi = df_weekly.iloc[-1]['RSI']
             
             # 메인 지표 3분할 카드
             col1, col2, col3 = st.columns(3)
@@ -191,8 +249,9 @@ for i, ticker in enumerate(tickers):
             st.line_chart(chart_df)
 
 # 사이드바 정보
+st.sidebar.markdown("---")
 st.sidebar.header("ℹ️ 설정 정보")
 st.sidebar.info(
     "이 대시보드는 Streamlit Cloud와 yfinance를 활용해 실시간으로 지표를 계산합니다.\n\n"
-    "버전: v1.9 (시장 심리 지표 최상단 배치)"
+    "버전: v2.0 (포트폴리오 비중 트리맵 추가)"
 )
